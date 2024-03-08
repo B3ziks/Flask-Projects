@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>To-Do List</title>
+	<audio id="alarmSound" src="/alarm.mp3"></audio>
+
+    <style>
+        body { font-family: Arial, sans-serif; background: #f7f7f7; text-align: center; padding-top: 50px; }
+        .container { width: 80%; margin: auto; background: white; padding: 20px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
+        .completed { text-decoration: line-through; }
+        ul { list-style-type: none; padding: 0; }
+        li { margin: 10px 0; }
+        button { margin-left: 10px; }
+		.overdue span { color: red;}
+		.columns {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 20px;
+}
+.column {
+    flex: 1;
+    padding: 0 10px;
+}
+.column h3 {
+    text-align: center;
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
+}
+.column ul {
+    list-style: none;
+    padding-left: 0;
+}
+.overdue, .overdue span, .overdue strong {
+    color: red !important;
+}
+    </style>
+</head>
+<body>
+   <div class="container">
+    <h2>To-Do List</h2>
+    <form id="addForm">
+        <input type="text" name="task" placeholder="Task details" required>
+        <input type="date" name="date" required>
+        <input type="time" name="time" required>
+        <button type="submit">Add Task</button>
+    </form>
+    <div class="columns">
+        <div class="column">
+            <h3>Overdue</h3>
+            <ul id="todoListBefore">
+				{% for todo in tasks_before %}
+				<li class="{{ 'overdue' if todo.get('overdue', False) else '' }}" 
+					data-date="{{ todo.date }}" data-time="{{ todo.time }}">
+					<span class="{{ 'completed' if todo.completed else '' }}">
+						{{ todo.task }} <strong>- {{ todo.date }}</strong> at <strong>{{ todo.time }}</strong>
+					</span>
+					<br>
+					{% if not todo.completed %}
+					<button onclick="completeTask('{{ todo.id }}');">Complete</button>
+					{% endif %}
+					<button onclick="deleteTask('{{ todo.id }}');">Delete</button>
+				</li>
+				{% endfor %}
+            </ul>
+        </div>
+        <div class="column">
+            <h3>Today</h3>
+            <ul id="todoListToday">
+                {% for todo in tasks_today %}
+                <!-- Tasks for today -->
+                <li class="{{ 'overdue' if todo.overdue else '' }}"
+                    data-date="{{ todo.date }}" data-time="{{ todo.time }}">
+                    <span class="{{ 'completed' if todo.completed else '' }}">
+                        {{ todo.task }} <strong>- {{ todo.date }}</strong> at <strong>{{ todo.time }}</strong>
+                    </span>
+					<br>
+					{% if not todo.completed %}
+					<button onclick="completeTask('{{ todo.id }}');">Complete</button>
+					<button data-task-id="{{ todo.id }}" data-action="setAlarm" onclick="setAlarm('{{ todo.id }}', '{{ todo.date }}', '{{ todo.time }}');">Set Alarm?</button>
+					{% endif %}
+					<button onclick="deleteTask('{{ todo.id }}');">Delete</button>
+				</li>
+				{% endfor %}
+            </ul>
+        </div>
+        <div class="column">
+            <h3>Tommorow or Later</h3>
+            <ul id="todoListLater">
+                {% for todo in tasks_later %}
+                <!-- Tasks for further date -->
+                <li class="{{ 'overdue' if todo.overdue else '' }}"
+                    data-date="{{ todo.date }}" data-time="{{ todo.time }}">
+                    <span class="{{ 'completed' if todo.completed else '' }}">
+                        {{ todo.task }} <strong>- {{ todo.date }}</strong> at <strong>{{ todo.time }}</strong>
+                    </span>
+					<br>
+					{% if not todo.completed %}
+					<button onclick="completeTask('{{ todo.id }}');">Complete</button>
+					<button onclick="setAlarm('{{ todo.id }}', '{{ todo.date }}', '{{ todo.time }}');">Set Alarm?</button>
+					{% endif %}
+					<button onclick="deleteTask('{{ todo.id }}');">Delete</button>
+				</li>
+				{% endfor %}
+            </ul>
+            </ul>
+        </div>
+    </div>
+</div>
+
+    <script>
+        document.getElementById('addForm').onsubmit = function(e) {
+            e.preventDefault();
+            var formData = new FormData(this);
+            fetch('/add', {
+                method: 'POST',
+                body: formData
+            }).then(response => response.json())
+            .then(data => {
+                if(data.success) {
+                    window.location.reload();
+                }
+            });
+        };
+
+		function completeTask(taskId) {
+			fetch('/complete', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+				},
+				body: `id=${taskId}`
+			})
+			.then(response => response.json())
+			.then(data => {
+				if (data.success) {
+					window.location.reload();  
+				} else {
+					console.error('Failed to complete task.');
+				}
+			});
+		}
+
+		function deleteTask(taskId) {
+			fetch('/delete', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+				},
+				body: `id=${taskId}`
+			})
+			.then(response => response.json())
+			.then(data => {
+				if (data.success) {
+					window.location.reload();
+				} else {
+					console.error('Failed to delete task.');
+				}
+			});
+		}
+		// This function will convert "Today" back to a YYYY-MM-DD format for comparison
+		function getFormattedDate(dateStr) {
+			if (dateStr.toLowerCase() === 'today') {
+				return new Date().toISOString().split('T')[0]; // returns current date in YYYY-MM-DD format
+			}
+			return dateStr;
+		}
+		function setAlarm(taskId, date, time) {
+			const taskDateTime = new Date(`${getFormattedDate(date)}T${time}`);
+			const now = new Date();
+
+			if (taskDateTime > now) {
+				const millisecondsUntilAlarm = taskDateTime.getTime() - now.getTime();
+				setTimeout(() => {
+					document.getElementById('alarmSound').play();
+				}, millisecondsUntilAlarm);
+
+				const alarmButton = document.querySelector(`button[data-task-id='${taskId}'][data-action='setAlarm']`);
+				if (alarmButton) {
+					alarmButton.textContent = 'Alarm Set'; 
+					alarmButton.disabled = true; 
+					alarmButton.removeAttribute('onclick'); 
+				}
+
+				console.log(`Alarm set for task ID: ${taskId} in ${millisecondsUntilAlarm} milliseconds.`);
+			} else {
+				console.error('Cannot set alarm for past time.');
+			}
+		}
+
+    </script>
+</body>
+</html>
