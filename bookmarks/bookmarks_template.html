@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Book Reading Log</title>
+  <style>
+        body { font-family: Arial, sans-serif; background: #f7f7f7; text-align: center; padding-top: 50px; }
+        .container { width: 80%; margin: auto; background: white; padding: 20px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
+        .completed { text-decoration: line-through; }
+        ul { list-style-type: none; padding: 0; }
+        li { margin: 10px 0; }
+        button { margin-left: 10px; }
+
+        .book-block {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+        .book-block img {
+            height: 200px; 
+            width: auto; 
+        }
+	#scrollTopBtn {
+	  display: none; 
+	  position: fixed; 
+	  bottom: 50px; 
+	  right: 50px; 
+	  z-index: 99; 
+	  border: none; 
+	  outline: none; 
+	  background-color: gray; 
+	  color: black; 
+	  cursor: pointer; 
+	  padding: 20px; 
+	  border-radius: 50%; 
+	  font-size: 20px; 
+	}
+
+	#scrollTopBtn:hover {
+	  background-color: #555; 
+	}
+    </style>
+</head>
+<body>
+
+	<!-- Scroll to Top Button -->
+	<button id="scrollTopBtn" title="Go to top">&#8657;</button>
+	
+    <div class="container">
+        <h2>Book Reading Log</h2>
+        <form id="addBookForm">
+            <input type="text" name="title" placeholder="Book Title" required>
+            <input type="text" name="author" placeholder="Author" required>
+            <input type="text" name="image_url" placeholder="Image URL" required>
+            <input type="number" name="current_page" placeholder="Current Page" required>
+            <input type="number" name="last_page" placeholder="Last Page" required>
+            <button type="submit">Add Book</button>
+        </form>
+		   <!-- Search Field -->
+        <br><br><input type="text" id="authorSearch" placeholder="Search.." oninput="filterBooks()" />
+		
+          <ul id="bookList">
+            {% for book in books %}
+            <li class="book-block">
+                <img src="{{ book.image_url }}" alt="Book cover">
+				<span class="book-title"><strong>{{ book.title }}</strong></span>
+				by <span class="book-author"><strong>{{ book.author }}</strong></span>
+				<span><strong>Page/Chapter:</strong> 
+					<input type="number" value="{{ book.current_page }}" 
+                    onchange="updateBookPage('{{ book.id }}', this.value)"/>/{{ book.last_page }}
+				</span>                
+				<button onclick="deleteBook('{{ book.id }}');">Delete</button>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+	
+  <script>
+        document.getElementById('addBookForm').onsubmit = function(e) {
+            e.preventDefault();
+            var formData = new FormData(this);
+            fetch('/add', {
+                method: 'POST',
+                body: formData
+            }).then(response => response.json())
+            .then(data => {
+                if(data.success) {
+                    window.location.reload();
+                }
+            });
+        };
+
+		function deleteBook(bookId) {
+			fetch('/delete', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body: 'id=' + encodeURIComponent(bookId) // Ensure proper encoding of the UUID
+			}).then(response => response.json())
+			.then(data => {
+				if(data.success) {
+					window.location.reload();
+				} else {
+					console.error('Failed to delete book.');
+				}
+			});
+		}
+
+		function updateBookPage(bookId, currentPage) {
+			fetch('/update', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body: `id=${encodeURIComponent(bookId)}&current_page=${currentPage}` // Encode the UUID
+			}).then(response => response.json())
+			.then(data => {
+				if(data.success) {
+					console.log('Page number updated successfully.');
+				} else {
+					console.error('Failed to update page number.', data.message);
+				}
+			});
+		}
+		function filterBooks() {
+			var searchValue = document.getElementById('authorSearch').value.toLowerCase();
+			var listItems = document.getElementById('bookList').getElementsByTagName('li');
+
+			for (var i = 0; i < listItems.length; i++) {
+				var titleText = listItems[i].querySelector('span.book-title').textContent.toLowerCase();
+				var authorText = listItems[i].querySelector('span.book-author').textContent.toLowerCase();
+				if (titleText.includes(searchValue) || authorText.includes(searchValue)) {
+					listItems[i].style.display = '';
+				} else {
+					listItems[i].style.display = 'none';
+				}
+			}
+		}
+		
+		// When the user scrolls down 20px from the top of the document, show the button
+		window.onscroll = function() {
+		  scrollFunction();
+		};
+
+		function scrollFunction() {
+		  if (document.body.scrollTop > 20 || document.documentElement.scrollTop > 20) {
+			document.getElementById('scrollTopBtn').style.display = 'block';
+		  } else {
+			document.getElementById('scrollTopBtn').style.display = 'none';
+		  }
+		}
+
+		// When the user clicks on the button, scroll to the top of the document
+		function topFunction() {
+		  document.body.scrollTop = 0; // For Safari
+		  document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
+		}
+
+		// Attach the topFunction to the button
+		document.getElementById('scrollTopBtn').onclick = function() {
+		  topFunction();
+		};
+
+    </script>
+</body>
+</html>
